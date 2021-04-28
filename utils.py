@@ -46,12 +46,8 @@ def get_opt_func(rate_matrices):
     n = len(rate_matrices[0][0])  # number of states
 
     for ndx1, (L, pi) in enumerate(rate_matrices): # check for local detailed balance (LDB)
-        for ix1 in range(n):
-            for ix2 in range(n):
-                if ix1 == ix2: 
-                    continue
-                if not np.isclose(pi[ix1]*L[ix2,ix1],pi[ix2]*L[ix1,ix2]):
-                    raise Exception('Rate matrix %d violates LDB' % ndx1)
+        if not np.allclose(L.dot(pi), 0):
+            raise Exception('stationary distribution and rate matrix %d do not match' % ndx1)
 
     
     def get_dS(W, p):
