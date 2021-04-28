@@ -1,27 +1,30 @@
 import numpy as np
 import cvxpy as cp
 import sys
+from scipy.special import entr, rel_entr
 
 def entropy(p):
-    return -p.dot(np.log(p))
+    """ Compute Shannon entropy of probability vector p """
+    return np.sum(entr(p))
 
 
-def kl(p2,q2, normalize=False):
-    p = p2.copy()
-    q = q2.copy()
+def kl(p,q, normalize=False):
+    """ Compute KL divergence between probability vectors p and q """
     if normalize:
-        p /= p.sum()
-        q /= q.sum()    
-    return sum([p[i]*np.log(p[i]/q[i]) for i in range(len(p)) if not np.isclose(p[i], 0)])
+        return np.sum(rel_entr(p/p.sum(),q/q.sum()))
+    else:
+        return np.sum(rel_entr(p,q))
 
 
-def boltzmann(E):
-    p = np.exp(-E)
+def boltzmann(E, beta=1.0):
+    """ Return Boltzmann distribution corresponding to energy function E and inverse temperature beta """
+    p = np.exp(-beta*E)
     return p / p.sum()
 
 
 def bisect(func, m, n, tol=1e-3):
-    print(m,n)
+    """ Perform bisection search for root """ 
+    print('Search range: [%g-%g]' % (m,n))
     if (n-m) < tol:
         return
     r = func((m+n)/2)
@@ -31,10 +34,36 @@ def bisect(func, m, n, tol=1e-3):
 
 
 def get_opt_func(rate_matrices):
-    
-    n = len(rate_matrices[0][0])
+    """ Builds objective function for finding optimal eta value
+
+    rate_matrices is list [ (rate_matrix_1, equilibrium_distribution_1), 
+                            (rate_matrix_2, equilibrium_distribution_2), 
+                            ...
+                          ]
+
+    """
+
+    n = len(rate_matrices[0][0])  # number of states
+
+    for ndx1, (L, pi) in enumerate(rate_matrices): # check for local detailed balance (LDB)
+        for ix1 in range(n):
+            for ix2 in range(n):
+                if ix1 == ix2: 
+                    continue
+                if not np.isclose(pi[ix1]*L[ix2,ix1],pi[ix2]*L[ix1,ix2]):
+                    raise Exception('Rate matrix %d violates LDB' % ndx1)
+
     
     def get_dS(W, p):
+        """ Rate of Shannon entropy change, for rate matrix W and distribution p """
+
+        """ We rewrite sum_{i,j} p_i R_ji ln (p_i/p_j) as the "KL-like" expression
+               1/tau sum_{i,j} p_i T_ji ln (p_i T_ji/p_j T_ji)
+        where tau = -min_i R_ii is the fastest time scale in R and
+        T_ji = delta_{ji} + tau R_ji is a conditional probability distribuiton. This 
+        lets us indicate to cvxpy that sum_{i,j} p_i R_ji ln (p_i/p_j) is convex in p.
+        """
+
         tau  = -1/np.min(np.diag(W))
         T    = np.eye(n) + tau*W
         assert(np.all(T>=0))
