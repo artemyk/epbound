@@ -1,11 +1,12 @@
 import sys
 import numpy as np
 import time
-from utils import *
 
 if not sys.version_info >= (3,5,0):
     raise Exception('Python 3.5 or higher required')
-    
+
+from utils import *
+
 
 np.set_printoptions(precision=2)
 
@@ -36,17 +37,19 @@ def build_rate_matrix(E):
     return L
 
 rate_matrices = []
+distributions = []
 for k, v in ixs.items():
     E = np.zeros(len(ixs))
     E[v] = 1.0
     L = build_rate_matrix(E)
     pi = boltzmann(E)
-    rate_matrices.append( (L, pi ) )
+    rate_matrices.append( L )
+    distributions.append( pi )
 
 
 print('Bisecting for optimal eta')
 start_time = time.time()
-v = get_opt_func(rate_matrices)
-bisect(v, 0, 1, tol=1e-2) 
+v = get_opt_func(rate_matrices, distributions)
+bisect(v, 0, 1, tol=1e-3) 
 print('Finished in %0.3f s' % (time.time() - start_time) )
 
